@@ -22,3 +22,21 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python cache & virtualenv
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.db
+
+# Binaries & Media
+watermark/ffmpeg.exe
+watermark/ffmpeg
+watermark/frames/
+watermark/outputs/
+watermark/uploads/
+watermark/debug_*.png
+watermark/frontend/
+*.mp4
+

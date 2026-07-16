@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vizard Watermark Remover — Test Tool</title>
+  <style>
+    :root {
+      --bg: #0f1117; --panel: #1a1d27; --border: #2a2f3d;
+      --text: #e8eaef; --muted: #8b93a7; --accent: #6c8cff;
+      --danger: #ff6b6b; --ok: #5dd39e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 20px; }
+    h1 { font-size: 1.35rem; font-weight: 600; margin-bottom: 4px; }
+    .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; line-height: 1.5; }
+    .layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; max-width: 1400px; margin: 0 auto; }
+    @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    .panel h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 12px; }
+    .drop { border: 2px dashed var(--border); border-radius: 10px; padding: 28px 16px; text-align: center; cursor: pointer; margin-bottom: 16px; }
+    .drop:hover, .drop.drag { border-color: var(--accent); background: rgba(108,140,255,0.06); }
+    .drop p { color: var(--muted); font-size: 0.85rem; margin-top: 6px; }
+    label { display: block; font-size: 0.82rem; color: var(--muted); margin: 10px 0 4px; }
+    input[type=range] { width: 100%; accent-color: var(--accent); }
+    input[type=number], select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 7px 10px; font-size: 0.85rem; }
+    .row4 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    button { width: 100%; margin-top: 12px; padding: 10px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.9rem; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .note { background: rgba(108,140,255,0.08); border: 1px solid rgba(108,140,255,0.25); border-radius: 8px; padding: 10px 12px; font-size: 0.82rem; line-height: 1.45; margin-bottom: 14px; color: #b8c4ff; }
+    .warn { background: rgba(255,107,107,0.1); border: 1px solid rgba(255,107,107,0.35); border-radius: 8px; padding: 10px 12px; font-size: 0.82rem; line-height: 1.45; margin-bottom: 14px; color: #ffb4b4; }
+    .tip { background: rgba(93,211,158,0.08); border: 1px solid rgba(93,211,158,0.25); border-radius: 8px; padding: 10px 12px; font-size: 0.82rem; line-height: 1.45; margin-top: 14px; color: #a8e6c5; }
+    .compare-wrap { position: relative; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); min-height: 400px; user-select: none; }
+    .compare-wrap.empty { display: flex; align-items: center; justify-content: center; color: var(--muted); min-height: 480px; }
+    .compare-wrap canvas.view { position: absolute; top: 0; left: 50%; transform: translateX(-50%); display: block; }
+    #boxCanvas { z-index: 3; cursor: move; }
+    #displayCanvas { z-index: 2; }
+    .slider-line { position: absolute; top: 0; bottom: 0; width: 3px; background: #fff; box-shadow: 0 0 8px rgba(0,0,0,0.6); pointer-events: none; z-index: 5; }
+    .slider-handle { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 36px; height: 36px; border-radius: 50%; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-size: 14px; color: #333; pointer-events: none; z-index: 6; }
+    .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; font-size: 0.8rem; color: var(--muted); }
+    .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+    .leg-before::before { background: var(--danger); }
+    .leg-after::before { background: var(--ok); }
+    .leg-box::before { background: rgba(108,140,255,0.5); border: 1px solid var(--accent); }
+    .status { font-size: 0.82rem; color: var(--muted); margin-top: 10px; min-height: 2.4em; line-height: 1.4; white-space: pre-wrap; }
+    .status.err { color: #ff8a8a; }
+    .status.busy { color: #b8c4ff; }
+    .val { float: right; color: var(--text); }
+    .mode-note { font-size: 0.78rem; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+    .progress-wrap { margin-top: 12px; display: none; }
+    .progress-wrap.active { display: block; }
+    .progress-label { font-size: 0.8rem; color: var(--accent); margin-bottom: 6px; display: flex; justify-content: space-between; }
+    .progress-track { height: 8px; background: var(--bg); border-radius: 99px; overflow: hidden; border: 1px solid var(--border); }
+    .progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), #8e6cff); border-radius: 99px; transition: width 0.25s ease; }
+    .drop.busy { pointer-events: none; opacity: 0.55; border-color: var(--accent); }
+    .loading-overlay {
+      position: absolute; inset: 0; z-index: 10;
+      background: rgba(0,0,0,0.72);
+      display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px;
+      text-align: center; padding: 24px;
+    }
+    .loading-overlay.active { display: flex; }
+    .spinner {
+      width: 44px; height: 44px; border: 4px solid rgba(255,255,255,0.15);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.85s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-title { font-size: 1rem; font-weight: 600; }
+    .loading-sub { font-size: 0.85rem; color: var(--muted); max-width: 280px; line-height: 1.45; }
+    .loading-pct { font-size: 1.5rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <h1>Vizard.ai Watermark Remover</h1>
+  <p class="sub">No server needed — open this file directly in Chrome or Edge. Drop an image or video, adjust the blue box, compare before/after.</p>
+
+  <div class="layout">
+    <aside class="panel">
+      <div class="drop" id="dropZone">
+        <strong>Drop image or video here</strong>
+        <p>PNG, JPG, WebP, MP4, WebM — or click to browse</p>
+        <input type="file" id="fileInput" accept="image/*,video/*,.mp4,.webm,.mov" hidden />
+      </div>
+
+      <div class="note">
+        <strong>No server required.</strong> Videos take 10–40 seconds to read — a progress bar and preview appear immediately so you know it's working.
+      </div>
+
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-label">
+          <span id="progressLabel">Reading video…</span>
+          <span id="progressPct">0%</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      </div>
+
+      <div class="warn">
+        <strong>Band artifact fix:</strong> shrink the blue box to cover only the white text. Use <em>Masked temporal min</em> for video.
+      </div>
+
+      <h2>Method</h2>
+      <select id="method">
+        <option value="masked-min">Masked temporal min (video, best)</option>
+        <option value="reverse-alpha">Reverse alpha blend (image)</option>
+        <option value="edge-fill">Edge fill inpaint (image)</option>
+        <option value="full-box">Full box replace (old — shows band)</option>
+      </select>
+      <p class="mode-note" id="methodNote"></p>
+
+      <h2>Watermark region</h2>
+      <div class="row4">
+        <div><label>X <span class="val" id="vX">395</span></label><input type="number" id="boxX" min="0" value="395" /></div>
+        <div><label>Y <span class="val" id="vY">35</span></label><input type="number" id="boxY" min="0" value="35" /></div>
+        <div><label>W <span class="val" id="vW">260</span></label><input type="number" id="boxW" min="10" value="260" /></div>
+        <div><label>H <span class="val" id="vH">65</span></label><input type="number" id="boxH" min="10" value="65" /></div>
+      </div>
+
+      <label>Alpha (reverse blend) <span class="val" id="vAlpha">0.65</span></label>
+      <input type="range" id="alpha" min="0.3" max="0.95" step="0.01" value="0.65" />
+      <label>Bright threshold <span class="val" id="vThresh">165</span></label>
+      <input type="range" id="thresh" min="120" max="220" step="1" value="165" />
+      <label>Feather edges <span class="val" id="vFeather">8</span></label>
+      <input type="range" id="feather" min="0" max="20" step="1" value="8" />
+      <label>Compare slider</label>
+      <input type="range" id="compare" min="0" max="100" step="1" value="50" />
+
+      <button class="btn-primary" id="processBtn" disabled>Apply watermark removal</button>
+      <button class="btn-secondary" id="exportVideoBtn" disabled>Export full video (WebM)</button>
+      <button class="btn-secondary" id="downloadBtn" disabled>Download preview PNG</button>
+      <div class="status" id="status">Waiting for file…</div>
+
+      <div class="tip">Use Chrome or Edge for best video support. If video fails, take a screenshot and upload as PNG instead.</div>
+    </aside>
+
+    <main>
+      <div class="compare-wrap empty" id="compareWrap">
+        <span id="placeholder">Upload a file to start</span>
+        <canvas id="displayCanvas" class="view" hidden></canvas>
+        <canvas id="boxCanvas" class="view" hidden></canvas>
+        <div class="slider-line" id="sliderLine" hidden></div>
+        <div class="slider-handle" id="sliderHandle" hidden>⇔</div>
+        <div class="loading-overlay" id="loadingOverlay">
+          <div class="spinner"></div>
+          <div class="loading-pct" id="overlayPct">0%</div>
+          <div class="loading-title" id="overlayTitle">Reading your video…</div>
+          <div class="loading-sub" id="overlaySub">First preview appears in a few seconds. Please keep this tab open.</div>
+        </div>
+      </div>
+      <div class="legend">
+        <span class="leg-before">Before (left of slider)</span>
+        <span class="leg-after">After (right of slider)</span>
+        <span class="leg-box">Processing region</span>
+      </div>
+    </main>
+  </div>
+
+<script>
+(() => {
+  const REF = { w: 720, h: 1280 };
+
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const compareWrap = document.getElementById('compareWrap');
+  const displayCanvas = document.getElementById('displayCanvas');
+  const boxCanvas = document.getElementById('boxCanvas');
+  const sliderLine = document.getElementById('sliderLine');
+  const sliderHandle = document.getElementById('sliderHandle');
+  const processBtn = document.getElementById('processBtn');
+  const exportVideoBtn = document.getElementById('exportVideoBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const statusEl = document.getElementById('status');
+  const methodEl = document.getElementById('method');
+  const methodNote = document.getElementById('methodNote');
+  const boxInputs = ['boxX','boxY','boxW','boxH'].map(id => document.getElementById(id));
+  const alphaEl = document.getElementById('alpha');
+  const threshEl = document.getElementById('thresh');
+  const featherEl = document.getElementById('feather');
+  const compareEl = document.getElementById('compare');
+  const progressWrap = document.getElementById('progressWrap');
+  const progressFill = document.getElementById('progressFill');
+  const progressLabel = document.getElementById('progressLabel');
+  const progressPct = document.getElementById('progressPct');
+  const loadingOverlay = document.getElementById('loadingOverlay');
+  const overlayPct = document.getElementById('overlayPct');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlaySub = document.getElementById('overlaySub');
+
+  let imgW = 0, imgH = 0, displayScale = 1;
+  let loadStartTime = 0;
+  let originalCanvas = null;  // full-res before
+  let resultCanvas = null;    // full-res after
+  let videoFrames = [];
+  let dragState = null;
+  let loadedVideoFile = null;
+  let isVideoLoaded = false;
+
+  const METHOD_NOTES = {
+    'masked-min': 'Min pixel across sampled frames, only on watermark pixels. Best for video.',
+    'reverse-alpha': 'original = (pixel − α×255) / (1−α). Best for a single image.',
+    'edge-fill': 'Spreads colors inward from edges. Good for stills.',
+    'full-box': 'Replaces whole rectangle — shows the band artifact.',
+  };
+  methodNote.textContent = METHOD_NOTES[methodEl.value];
+
+  function setStatus(msg, isError = false, isBusy = false) {
+    statusEl.textContent = msg;
+    statusEl.classList.toggle('err', isError);
+    statusEl.classList.toggle('busy', isBusy);
+  }
+
+  function setBusy(on, title = 'Working…', sub = '') {
+    dropZone.classList.toggle('busy', on);
+    progressWrap.classList.toggle('active', on);
+    loadingOverlay.classList.toggle('active', on);
+    if (title) overlayTitle.textContent = title;
+    if (sub) overlaySub.textContent = sub;
+    fileInput.disabled = on;
+  }
+
+  function setProgress(pct, label, sub = '') {
+    const p = Math.max(0, Math.min(100, Math.round(pct)));
+    progressFill.style.width = p + '%';
+    progressPct.textContent = p + '%';
+    overlayPct.textContent = p + '%';
+    if (label) progressLabel.textContent = label;
+    if (sub) overlaySub.textContent = sub;
+
+    if (loadStartTime && p > 2 && p < 100) {
+      const elapsed = (Date.now() - loadStartTime) / 1000;
+      const eta = Math.round((elapsed / p) * (100 - p));
+      setStatus(`${label}\nAbout ${eta}s remaining…`, false, true);
+    }
+  }
+
+  function isVideoFile(file) {
+    if (file.type && file.type.startsWith('video/')) return true;
+    return /\.(mp4|webm|mov|m4v|mkv)$/i.test(file.name);
+  }
+
+  function getBox() {
+    return { x: +boxInputs[0].value, y: +boxInputs[1].value, w: +boxInputs[2].value, h: +boxInputs[3].value };
+  }
+
+  function setBox(b) {
+    boxInputs[0].value = Math.round(b.x);
+    boxInputs[1].value = Math.round(b.y);
+    boxInputs[2].value = Math.round(b.w);
+    boxInputs[3].value = Math.round(b.h);
+    ['vX','vY','vW','vH'].forEach((id, i) => document.getElementById(id).textContent = boxInputs[i].value);
+    drawBoxOverlay();
+  }
+
+  function scaleBox(w, h) {
+    const b = getBox();
+    return {
+      x: Math.round(b.x * w / REF.w),
+      y: Math.round(b.y * h / REF.h),
+      w: Math.round(b.w * w / REF.w),
+      h: Math.round(b.h * h / REF.h),
+    };
+  }
+
+  function bindSlider(id, el, fmt = v => v) {
+    el.addEventListener('input', () => {
+      document.getElementById(id).textContent = fmt(el.value);
+      if (originalCanvas) runProcess({ silent: true });
+    });
+  }
+  bindSlider('vAlpha', alphaEl, v => (+v).toFixed(2));
+  bindSlider('vThresh', threshEl);
+  bindSlider('vFeather', featherEl);
+  compareEl.addEventListener('input', redrawDisplay);
+  methodEl.addEventListener('change', () => {
+    methodNote.textContent = METHOD_NOTES[methodEl.value];
+    if (originalCanvas) runProcess({ silent: false, flash: true });
+  });
+  boxInputs.forEach(inp => inp.addEventListener('input', () => {
+    ['vX','vY','vW','vH'].forEach((id, i) => document.getElementById(id).textContent = boxInputs[i].value);
+    drawBoxOverlay();
+    if (originalCanvas) runProcess({ silent: true });
+  }));
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag');
+    if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+  async function loadFile(file) {
+    try {
+      processBtn.disabled = true;
+      exportVideoBtn.disabled = true;
+      downloadBtn.disabled = true;
+      videoFrames = [];
+      originalCanvas = null;
+      resultCanvas = null;
+      loadedVideoFile = null;
+      isVideoLoaded = false;
+
+      if (isVideoFile(file)) {
+        loadedVideoFile = file;
+        isVideoLoaded = true;
+        setStatus('Loading video…');
+        await loadVideo(file);
+      } else {
+        setStatus('Loading image…');
+        await loadImage(file);
+      }
+    } catch (err) {
+      console.error(err);
+      setBusy(false);
+      setStatus('Failed: ' + err.message + '\n\nTry Chrome/Edge, or upload a PNG screenshot instead.', true);
+      processBtn.disabled = true;
+    }
+  }
+
+  function loadImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        imgW = img.width;
+        imgH = img.height;
+        originalCanvas = imageToCanvas(img);
+        setupDisplay();
+        processBtn.disabled = false;
+        exportVideoBtn.disabled = true;
+        setStatus(`Image loaded: ${imgW}×${imgH}. Applying removal…`);
+        runProcess({ silent: false, flash: true });
+        resolve();
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read image file')); };
+      img.src = url;
+    });
+  }
+
+  function imageToCanvas(img) {
+    const c = document.createElement('canvas');
+    c.width = img.width;
+    c.height = img.height;
+    c.getContext('2d').drawImage(img, 0, 0);
+    return c;
+  }
+
+  function waitEvent(el, event, timeoutMs = 15000) {
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error(event + ' timed out')), timeoutMs);
+      el.addEventListener(event, function handler() {
+        clearTimeout(t);
+        el.removeEventListener(event, handler);
+        resolve();
+      }, { once: true });
+    });
+  }
+
+  async function seekVideo(video, time) {
+    const t = Math.max(0, Math.min(time, Math.max(0, video.duration - 0.05)));
+    if (Math.abs(video.currentTime - t) < 0.01) return;
+    video.currentTime = t;
+    await waitEvent(video, 'seeked', 8000);
+  }
+
+  function showPreviewFrame(w, h, frameData) {
+    originalCanvas = document.createElement('canvas');
+    originalCanvas.width = w;
+    originalCanvas.height = h;
+    const copy = new Uint8ClampedArray(frameData);
+    originalCanvas.getContext('2d').putImageData(new ImageData(copy, w, h), 0, 0);
+    if (!displayCanvas.width) setupDisplay();
+    else redrawDisplay();
+    drawBoxOverlay();
+  }
+
+  async function loadVideo(file) {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.src = url;
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+
+    loadStartTime = Date.now();
+    setBusy(true, 'Opening video…', 'This is normal — your browser is reading frames one by one.');
+    setProgress(2, 'Opening video…');
+
+    try {
+      await waitEvent(video, 'loadedmetadata', 20000);
+      setProgress(8, 'Video opened');
+
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      if (!w || !h) throw new Error('Video has no picture data — try Chrome/Edge');
+
+      imgW = w;
+      imgH = h;
+
+      const duration = video.duration;
+      if (!duration || !isFinite(duration)) throw new Error('Cannot read video duration');
+
+      // ~2 samples/sec, capped at 24 — enough for temporal min, much faster than 60
+      const sampleCount = Math.min(24, Math.max(12, Math.round(duration * 2)));
+
+      const scratch = document.createElement('canvas');
+      scratch.width = w;
+      scratch.height = h;
+      const sctx = scratch.getContext('2d', { willReadFrequently: true });
+
+      videoFrames = [];
+      let previewShown = false;
+
+      for (let i = 0; i < sampleCount; i++) {
+        const pct = 10 + Math.round((i / sampleCount) * 75);
+        setProgress(pct, `Reading frame ${i + 1} of ${sampleCount}`,
+          previewShown
+            ? 'Preview visible — still reading more frames for better removal.'
+            : 'First preview coming up…');
+
+        await seekVideo(video, (duration * i) / Math.max(1, sampleCount - 1));
+        sctx.drawImage(video, 0, 0, w, h);
+        const data = sctx.getImageData(0, 0, w, h).data;
+        videoFrames.push(new Uint8ClampedArray(data));
+
+        // Show preview after first frame so user sees something immediately
+        if (!previewShown) {
+          showPreviewFrame(w, h, data);
+          previewShown = true;
+          overlayTitle.textContent = 'Reading video frames…';
+          loadingOverlay.classList.remove('active'); // preview visible — progress bar only
+        }
+
+        // Early result after 8 frames
+        if (i === 7) {
+          setProgress(55, 'Quick preview…', 'Applying early watermark removal while reading continues.');
+          runProcess({ silent: true });
+        }
+
+        await new Promise(r => setTimeout(r, 0));
+      }
+
+      const mid = videoFrames[Math.floor(videoFrames.length / 2)];
+      showPreviewFrame(w, h, mid);
+
+      setProgress(92, 'Finalizing…', 'Almost done.');
+      setupDisplay();
+      processBtn.disabled = false;
+      exportVideoBtn.disabled = false;
+      runProcess({ silent: true, flash: true });
+
+      setProgress(100, 'Done');
+      setBusy(false);
+      setStatus(`Ready — ${w}×${h}, ${sampleCount} frames sampled.\nClick "Apply watermark removal" to re-run, or drag the compare slider.`);
+    } finally {
+      URL.revokeObjectURL(url);
+      video.src = '';
+      loadStartTime = 0;
+    }
+  }
+
+  function setupDisplay() {
+    document.getElementById('placeholder')?.remove();
+    compareWrap.classList.remove('empty');
+
+    const maxW = compareWrap.clientWidth || 700;
+    displayScale = Math.min(1, maxW / imgW);
+    const dw = Math.round(imgW * displayScale);
+    const dh = Math.round(imgH * displayScale);
+
+    [displayCanvas, boxCanvas].forEach(c => {
+      c.width = dw;
+      c.height = dh;
+      c.hidden = false;
+      c.style.width = dw + 'px';
+      c.style.height = dh + 'px';
+    });
+    compareWrap.style.height = dh + 'px';
+
+    sliderLine.hidden = false;
+    sliderHandle.hidden = false;
+    setupBoxInteraction(dw, dh);
+    drawBoxOverlay();
+    redrawDisplay();
+  }
+
+  function drawBoxOverlay() {
+    if (!boxCanvas.width) return;
+    const ctx = boxCanvas.getContext('2d');
+    ctx.clearRect(0, 0, boxCanvas.width, boxCanvas.height);
+    const sb = scaleBox(imgW, imgH);
+    const x = sb.x * displayScale, y = sb.y * displayScale;
+    const w = sb.w * displayScale, h = sb.h * displayScale;
+    ctx.strokeStyle = 'rgba(108,140,255,0.95)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(x, y, w, h);
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(108,140,255,0.15)';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#6c8cff';
+    [[x,y],[x+w,y],[x,y+h],[x+w,y+h]].forEach(([cx,cy]) => ctx.fillRect(cx-5, cy-5, 10, 10));
+  }
+
+  function setupBoxInteraction(dw, dh) {
+    boxCanvas.onmousedown = e => {
+      const rect = boxCanvas.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) / displayScale;
+      const my = (e.clientY - rect.top) / displayScale;
+      const b = scaleBox(imgW, imgH);
+      const margin = 14 / displayScale;
+      const corners = { nw:[b.x,b.y], ne:[b.x+b.w,b.y], sw:[b.x,b.y+b.h], se:[b.x+b.w,b.y+b.h] };
+      let mode = 'move';
+      for (const [k,[cx,cy]] of Object.entries(corners)) {
+        if (Math.abs(mx-cx) < margin && Math.abs(my-cy) < margin) { mode = k; break; }
+      }
+      dragState = { mode, startX: mx, startY: my, box: { ...b } };
+      e.preventDefault();
+    };
+    window.onmousemove = e => {
+      if (!dragState) return;
+      const rect = boxCanvas.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) / displayScale;
+      const my = (e.clientY - rect.top) / displayScale;
+      const dx = mx - dragState.startX, dy = my - dragState.startY;
+      let { x, y, w, h } = dragState.box;
+      const m = dragState.mode;
+      if (m === 'move') { x += dx; y += dy; }
+      else {
+        if (m.includes('n')) { y += dy; h -= dy; }
+        if (m.includes('s')) h += dy;
+        if (m.includes('w')) { x += dx; w -= dx; }
+        if (m.includes('e')) w += dx;
+      }
+      setBox({ x: x*REF.w/imgW, y: y*REF.h/imgH, w: w*REF.w/imgW, h: h*REF.h/imgH });
+      runProcess({ silent: true });
+    };
+    window.onmouseup = () => { dragState = null; };
+  }
+
+  function redrawDisplay() {
+    if (!originalCanvas) return;
+    const ctx = displayCanvas.getContext('2d');
+    const pct = +compareEl.value;
+    const split = Math.round(displayCanvas.width * pct / 100);
+
+    ctx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
+    ctx.drawImage(originalCanvas, 0, 0, displayCanvas.width, displayCanvas.height);
+
+    if (resultCanvas) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(split, 0, displayCanvas.width - split, displayCanvas.height);
+      ctx.clip();
+      ctx.drawImage(resultCanvas, 0, 0, displayCanvas.width, displayCanvas.height);
+      ctx.restore();
+    }
+
+    sliderLine.style.left = split + 'px';
+    sliderHandle.style.left = split + 'px';
+  }
+
+  function featherMask(w, h, fade) {
+    const m = new Float32Array(w * h);
+    m.fill(1);
+    if (fade <= 0) return m;
+    for (let i = 0; i < fade; i++) {
+      const a = (i + 1) / fade;
+      for (let x = 0; x < w; x++) { m[x + i*w] *= a; m[x + (h-1-i)*w] *= a; }
+      for (let y = 0; y < h; y++) { m[i + y*w] *= a; m[(w-1-i) + y*w] *= a; }
+    }
+    return m;
+  }
+
+  function buildTextMask(data, w, x, y, bw, bh, thresh) {
+    const mask = new Uint8Array(bw * bh);
+    for (let row = 0; row < bh; row++) {
+      for (let col = 0; col < bw; col++) {
+        const px = ((y+row)*w + (x+col)) * 4;
+        const bright = 0.299*data[px] + 0.587*data[px+1] + 0.114*data[px+2];
+        mask[row*bw+col] = bright > thresh ? 1 : 0;
+      }
+    }
+    return mask;
+  }
+
+  function reverseAlpha(data, w, box, alpha, thresh, feather) {
+    const out = new Uint8ClampedArray(data);
+    const { x, y, w: bw, h: bh } = box;
+    const mask = buildTextMask(out, w, x, y, bw, bh, thresh);
+    const fmap = featherMask(bw, bh, feather);
+    for (let row = 0; row < bh; row++) {
+      for (let col = 0; col < bw; col++) {
+        if (!mask[row*bw+col]) continue;
+        const px = ((y+row)*w + (x+col)) * 4;
+        const f = fmap[row*bw+col];
+        for (let c = 0; c < 3; c++) {
+          const v = out[px+c];
+          const rec = (v - alpha*255) / (1-alpha);
+          out[px+c] = Math.max(0, Math.min(255, v*(1-f) + rec*f));
+        }
+      }
+    }
+    return out;
+  }
+
+  function edgeFill(data, w, box, thresh, feather) {
+    const out = new Uint8ClampedArray(data);
+    const { x, y, w: bw, h: bh } = box;
+    const mask = buildTextMask(out, w, x, y, bw, bh, thresh);
+    const fmap = featherMask(bw, bh, feather);
+    const buf = new Float32Array(bw*bh*3);
+    for (let row = 0; row < bh; row++) for (let col = 0; col < bw; col++) {
+      const i = (row*bw+col)*3, px = ((y+row)*w+(x+col))*4;
+      buf[i]=out[px]; buf[i+1]=out[px+1]; buf[i+2]=out[px+2];
+    }
+    for (let p = 0; p < 40; p++) {
+      const next = new Float32Array(buf);
+      for (let row = 0; row < bh; row++) for (let col = 0; col < bw; col++) {
+        if (!mask[row*bw+col]) continue;
+        let sr=0,sg=0,sb=0,n=0;
+        for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+          const nr=row+dr, nc=col+dc;
+          if (nr<0||nr>=bh||nc<0||nc>=bw||mask[nr*bw+nc]) continue;
+          const i=(nr*bw+nc)*3; sr+=buf[i]; sg+=buf[i+1]; sb+=buf[i+2]; n++;
+        }
+        if (n) { const i=(row*bw+col)*3; next[i]=sr/n; next[i+1]=sg/n; next[i+2]=sb/n; }
+      }
+      for (let row = 0; row < bh; row++) for (let col = 0; col < bw; col++) {
+        if (!mask[row*bw+col]) continue;
+        const i=(row*bw+col)*3;
+        buf[i]=next[i]; buf[i+1]=next[i+1]; buf[i+2]=next[i+2];
+      }
+    }
+    for (let row = 0; row < bh; row++) for (let col = 0; col < bw; col++) {
+      if (!mask[row*bw+col]) continue;
+      const px=((y+row)*w+(x+col))*4, i=(row*bw+col)*3, f=fmap[row*bw+col];
+      for (let c=0;c<3;c++) out[px+c] = out[px+c]*(1-f) + buf[i+c]*f;
+    }
+    return out;
+  }
+
+  function temporalMin(frames, w, box, thresh, feather, maskedOnly) {
+    const { x, y, w: bw, h: bh } = box;
+    const mins = new Float32Array(bw*bh*3).fill(255);
+    const maxs = new Float32Array(bw*bh*3).fill(0);
+    for (const fd of frames) {
+      for (let row = 0; row < bh; row++) for (let col = 0; col < bw; col++) {
+        const px = ((y+row)*w+(x+col))*4, i=(row*bw+col)*3;
+        for (let c=0;c<3;c++) {
+          const v = fd[px+c];
+          mins[i+c] = Math.min(mins[i+c], v);
+          maxs[i+c] = Math.max(maxs[i+c], v);
+        }
+      }
+    }
+    const base = new Uint8ClampedArray(frames[Math.floor(frames.length/2)]);
+    const fmap = featherMask(bw, bh, feather);
+    for (let row = 0; row < bh; row++) for (let col = 0; col < bw; col++) {
+      const i=(row*bw+col)*3, px=((y+row)*w+(x+col))*4;
+      let delta = 0;
+      for (let c=0;c<3;c++) delta += maxs[i+c]-mins[i+c];
+      delta /= 3;
+      const bright = 0.299*base[px]+0.587*base[px+1]+0.114*base[px+2];
+      const isWM = delta > 8 || bright > thresh;
+      if (maskedOnly && !isWM) continue;
+      const f = maskedOnly ? (isWM ? fmap[row*bw+col] : 0) : fmap[row*bw+col];
+      if (f <= 0) continue;
+      for (let c=0;c<3;c++) {
+        const orig = base[px+c], rec = mins[i+c];
+        base[px+c] = Math.max(0, Math.min(255, orig*(1-f)+rec*f));
+      }
+    }
+    return base;
+  }
+
+  function flashPreview() {
+    compareWrap.style.outline = '3px solid var(--ok)';
+    compareWrap.style.outlineOffset = '-3px';
+    setTimeout(() => { compareWrap.style.outline = ''; }, 600);
+  }
+
+  function runProcess(opts = {}) {
+    const { silent = false, flash = false } = opts;
+    if (!originalCanvas) {
+      if (!silent) setStatus('No image loaded yet.', true);
+      return;
+    }
+    if (!silent) {
+      processBtn.disabled = true;
+      setStatus('Applying watermark removal…', false, true);
+    }
+
+    requestAnimationFrame(() => {
+      try {
+        const ctx = originalCanvas.getContext('2d', { willReadFrequently: true });
+        const imgData = ctx.getImageData(0, 0, imgW, imgH);
+        const data = imgData.data;
+        const box = scaleBox(imgW, imgH);
+        const scaled = { x: box.x, y: box.y, bw: box.w, bh: box.h };
+        const method = methodEl.value;
+        const alpha = +alphaEl.value;
+        const thresh = +threshEl.value;
+        const feather = +featherEl.value;
+
+        let result;
+        if ((method === 'masked-min' || method === 'full-box') && videoFrames.length > 1) {
+          result = temporalMin(videoFrames, imgW, scaled, thresh, feather, method === 'masked-min');
+        } else if (method === 'edge-fill') {
+          result = edgeFill(data, imgW, scaled, thresh, feather);
+        } else {
+          result = reverseAlpha(data, imgW, scaled, alpha, thresh, feather);
+        }
+
+        resultCanvas = document.createElement('canvas');
+        resultCanvas.width = imgW;
+        resultCanvas.height = imgH;
+        resultCanvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(result), imgW, imgH), 0, 0);
+
+        downloadBtn.disabled = false;
+        redrawDisplay();
+        if (flash) flashPreview();
+        if (!silent) {
+          setStatus(`Done! Drag the compare slider left/right to see before vs after.\n${videoFrames.length > 1 ? videoFrames.length + ' video frames used.' : 'Single image.'}`);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!silent) setStatus('Error: ' + err.message, true);
+      }
+      if (!silent) processBtn.disabled = false;
+    });
+  }
+  processBtn.addEventListener('click', () => runProcess({ silent: false, flash: true }));
+
+  async function exportFullVideo() {
+    if (!loadedVideoFile) {
+      setStatus('Upload a video first.', true);
+      return;
+    }
+    exportVideoBtn.disabled = true;
+    processBtn.disabled = true;
+    loadStartTime = Date.now();
+    setBusy(true, 'Exporting full video…', 'Pass 1 of 2 — finding watermark pattern…');
+
+    const url = URL.createObjectURL(loadedVideoFile);
+    const video = document.createElement('video');
+    video.src = url;
+    video.muted = true;
+    video.playsInline = true;
+
+    try {
+      await waitEvent(video, 'loadedmetadata', 20000);
+      const w = video.videoWidth, h = video.videoHeight;
+      const duration = video.duration;
+      const fps = 30;
+      const total = Math.max(1, Math.ceil(duration * fps));
+      const box = scaleBox(w, h);
+      const { x, y, w: bw, h: bh } = box;
+      const feather = featherMask(bw, bh, +featherEl.value);
+      const thresh = +threshEl.value;
+
+      const scratch = document.createElement('canvas');
+      scratch.width = w; scratch.height = h;
+      const sctx = scratch.getContext('2d', { willReadFrequently: true });
+
+      const mins = new Float32Array(bw * bh * 3).fill(255);
+      const maxs = new Float32Array(bw * bh * 3).fill(0);
+
+      for (let i = 0; i < total; i++) {
+        setProgress((i / total) * 45, `Pass 1: frame ${i + 1}/${total}`);
+        await seekVideo(video, Math.min(i / fps, duration - 0.05));
+        sctx.drawImage(video, 0, 0, w, h);
+        const patch = sctx.getImageData(x, y, bw, bh).data;
+        for (let p = 0; p < bw * bh; p++) {
+          const pi = p * 3, di = p * 4;
+          for (let c = 0; c < 3; c++) {
+            mins[pi + c] = Math.min(mins[pi + c], patch[di + c]);
+            maxs[pi + c] = Math.max(maxs[pi + c], patch[di + c]);
+          }
+        }
+        if (i % 10 === 0) await new Promise(r => setTimeout(r, 0));
+      }
+
+      const wmMask = new Uint8Array(bw * bh);
+      for (let p = 0; p < bw * bh; p++) {
+        const pi = p * 3;
+        const delta = ((maxs[pi] - mins[pi]) + (maxs[pi+1] - mins[pi+1]) + (maxs[pi+2] - mins[pi+2])) / 3;
+        wmMask[p] = delta > 8 ? 1 : 0;
+      }
+
+      setBusy(true, 'Exporting full video…', 'Pass 2 of 2 — writing cleaned video…');
+      const recCanvas = document.createElement('canvas');
+      recCanvas.width = w; recCanvas.height = h;
+      const rctx = recCanvas.getContext('2d');
+      const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9' : 'video/webm';
+      const stream = recCanvas.captureStream(fps);
+      const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 4_000_000 });
+      const chunks = [];
+      recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+      const stopped = new Promise(r => { recorder.onstop = r; });
+      recorder.start(100);
+
+      for (let i = 0; i < total; i++) {
+        setProgress(45 + (i / total) * 50, `Pass 2: frame ${i + 1}/${total}`);
+        await seekVideo(video, Math.min(i / fps, duration - 0.05));
+        sctx.drawImage(video, 0, 0, w, h);
+        const frame = sctx.getImageData(0, 0, w, h);
+        const fd = frame.data;
+        for (let row = 0; row < bh; row++) for (let col = 0; col < bw; col++) {
+          const p = row * bw + col;
+          const pi = p * 3, px = ((y + row) * w + (x + col)) * 4;
+          const bright = 0.299 * fd[px] + 0.587 * fd[px + 1] + 0.114 * fd[px + 2];
+          const isWM = wmMask[p] || bright > thresh;
+          if (!isWM) continue;
+          const f = feather[row * bw + col];
+          if (f <= 0) continue;
+          for (let c = 0; c < 3; c++) {
+            const orig = fd[px + c], rec = mins[pi + c];
+            fd[px + c] = Math.max(0, Math.min(255, orig * (1 - f) + rec * f));
+          }
+        }
+        rctx.putImageData(frame, 0, 0);
+        await new Promise(r => setTimeout(r, 1000 / fps));
+        if (i % 10 === 0) await new Promise(r => setTimeout(r, 0));
+      }
+
+      recorder.stop();
+      await stopped;
+      const blob = new Blob(chunks, { type: mime });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'watermark_removed.webm';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+
+      setProgress(100, 'Export complete');
+      setStatus(`Video exported! Saved as watermark_removed.webm\n(${total} frames at ${fps} fps)`);
+    } catch (err) {
+      console.error(err);
+      setStatus('Export failed: ' + err.message, true);
+    } finally {
+      URL.revokeObjectURL(url);
+      video.src = '';
+      loadStartTime = 0;
+      setBusy(false);
+      exportVideoBtn.disabled = isVideoLoaded;
+      processBtn.disabled = false;
+    }
+  }
+
+  exportVideoBtn.addEventListener('click', exportFullVideo);
+
+  downloadBtn.addEventListener('click', () => {
+    if (!resultCanvas) return;
+    resultCanvas.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'watermark_removed.png';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }, 'image/png');
+  });
+
+  window.addEventListener('resize', () => {
+    if (originalCanvas) { setupDisplay(); redrawDisplay(); }
+  });
+})();
+</script>
+</body>
+</html>
