@@ -54,9 +54,8 @@ export default function Home() {
     formData.append('file', file);
     
     try {
-      // In Docker Compose, the Vite proxy or absolute URL needs to be set.
-      // We will assume Vite is proxying /api to the backend.
-      const response = await axios.post('/api/upload', formData, {
+      const apiBase = import.meta.env.VITE_API_URL || 'https://ai-editor-10.onrender.com';
+      const response = await axios.post(`${apiBase}/api/upload`, formData, {
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 100));
           setProgress(percentCompleted);
@@ -64,7 +63,9 @@ export default function Home() {
       });
       navigate(`/processing/${response.data.job_id}`);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Upload failed. Please try again.");
+      console.error(err);
+      const errMsg = err.response?.data?.detail || "Failed to connect to backend server. Make sure the backend is active.";
+      setError(errMsg);
       setUploading(false);
     }
   };

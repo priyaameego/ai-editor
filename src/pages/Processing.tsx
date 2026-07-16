@@ -14,14 +14,17 @@ export default function Processing() {
     
     const interval = setInterval(async () => {
       try {
-        const res = await axios.get(`/api/status/${jobId}`);
+        const apiBase = import.meta.env.VITE_API_URL || 'https://ai-editor-10.onrender.com';
+        const res = await axios.get(`${apiBase}/api/status/${jobId}`);
         setJob(res.data);
         
         if (res.data.status === 'completed' || res.data.status === 'failed') {
           clearInterval(interval);
         }
       } catch (err: any) {
-        setError(err.response?.data?.detail || "Failed to fetch status");
+        console.error(err);
+        const errMsg = err.response?.data?.detail || "Failed to fetch status from backend server. Backend might be unreachable.";
+        setError(errMsg);
         clearInterval(interval);
       }
     }, 2000);
@@ -62,7 +65,7 @@ export default function Processing() {
           <CheckCircle size={48} color="var(--success)" style={{ marginBottom: '1.5rem' }} />
           <h2>Processing Complete!</h2>
           <p style={{ marginBottom: '2rem' }}>Your video is ready to download.</p>
-          <a href={`/api/download/${job.job_id}`} className="btn btn-primary" download>
+          <a href={`${import.meta.env.VITE_API_URL || 'https://ai-editor-10.onrender.com'}/api/download/${job.job_id}`} className="btn btn-primary" download>
             <Download size={18} /> Download Clean Video
           </a>
           <button className="btn btn-secondary" style={{ marginTop: '1rem', marginLeft: '1rem' }} onClick={() => navigate('/')}>
