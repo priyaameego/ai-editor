@@ -1,4 +1,3 @@
-import React from 'react';
 import { HelpCircle, Mail, Shield } from 'lucide-react';
 
 export default function Info() {
