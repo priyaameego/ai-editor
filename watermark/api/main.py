@@ -13,7 +13,7 @@ app = FastAPI(title="Watermark Remover API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -36,17 +36,19 @@ def on_startup():
 
 @app.post("/api/upload")
 async def upload_video(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
-    if not file.filename.lower().endswith(('.mp4', '.mov', '.webm', '.mkv')):
+    _, ext = os.path.splitext(file.filename)
+    ext = ext.lower()
+    if ext not in ['.mp4', '.mov', '.webm', '.mkv']:
         raise HTTPException(status_code=400, detail="Invalid file type. Only video files are allowed.")
     
-    # Secure validation
-    input_path = os.path.join(UPLOADS_DIR, file.filename)
+    job_id = create_job(file.filename)
+    
+    input_filename = f"input_{job_id}{ext}"
+    input_path = os.path.join(UPLOADS_DIR, input_filename)
     
     with open(input_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
         
-    job_id = create_job(file.filename)
-    
     output_filename = f"clean_{job_id}.mp4"
     output_path = os.path.join(OUTPUTS_DIR, output_filename)
     

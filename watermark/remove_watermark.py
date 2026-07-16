@@ -6,6 +6,7 @@ Uses inpainting on a dynamically calculated bounding box.
 Usage:
   python remove_watermark.py [input.mp4] [output.mp4]
 """
+import os
 import subprocess
 import sys
 import tempfile
@@ -73,35 +74,45 @@ def process_video(input_path: str, output_path: str) -> None:
     print(f"Input: {width}x{height} @ {fps:.1f} fps")
     print(f"Watermark box: x={x} y={y} w={w} h={h}")
 
-    print("Pass 1/2: reading frames...")
-    frames: list[np.ndarray] = []
-    while True:
-        ok, frame = cap.read()
-        if not ok:
-            break
-        frames.append(frame)
-
-    cap.release()
-    total = len(frames)
-    print(f"  {total} frames loaded")
+    # Count total frames efficiently without holding them in RAM
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if total <= 0:
+        total = 0
+        while True:
+            ok = cap.grab()
+            if not ok:
+                break
+            total += 1
+        cap.release()
+        cap = cv2.VideoCapture(str(input_path))
 
     if total == 0:
         raise RuntimeError("No frames read from video.")
 
-    mask = build_watermark_mask([frames[0]], box)
+    print("Pass 1/2: reading frames...")
+    print(f"  {total} frames loaded")
+
+    mask = build_watermark_mask(None, box)
 
     print("Pass 2/2: applying masked removal...")
-    tmp = Path(tempfile.gettempdir()) / "watermark_removed_noaudio.mp4"
+    tmp = Path(tempfile.gettempdir()) / f"watermark_removed_noaudio_{os.getpid()}.mp4"
     writer = cv2.VideoWriter(str(tmp), cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
 
-    for i, frame in enumerate(frames):
-        out = apply_patch_masked(frame, mask, box)
-        out = cleanup_leftover(out, box)
-        writer.write(out)
-        if (i + 1) % 120 == 0 or i + 1 == total:
-            print(f"  {i + 1}/{total} frames", flush=True)
-
-    writer.release()
+    i = 0
+    try:
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            out = apply_patch_masked(frame, mask, box)
+            out = cleanup_leftover(out, box)
+            writer.write(out)
+            i += 1
+            if i % 120 == 0 or i == total:
+                print(f"  {i}/{total} frames", flush=True)
+    finally:
+        cap.release()
+        writer.release()
 
     print("Merging audio with ffmpeg...")
     cmd = [
@@ -119,10 +130,21 @@ def process_video(input_path: str, output_path: str) -> None:
             print(result.stderr)
             raise RuntimeError("ffmpeg failed")
     except FileNotFoundError:
-        print("Warning: ffmpeg not found in PATH! Falling back to local ffmpeg.exe.")
-        local_ffmpeg = Path(__file__).parent / "ffmpeg.exe"
+        print("Warning: ffmpeg not found in PATH! Falling back to local ffmpeg.")
+        if sys.platform.startswith('win'):
+            local_ffmpeg = Path(__file__).parent / "ffmpeg.exe"
+        else:
+            local_ffmpeg = Path(__file__).parent / "ffmpeg"
+            
         if not local_ffmpeg.exists():
              raise RuntimeError(f"ffmpeg not found in PATH and local {local_ffmpeg} does not exist.")
+             
+        if not sys.platform.startswith('win'):
+            try:
+                os.chmod(str(local_ffmpeg), 0o755)
+            except:
+                pass
+                
         cmd[0] = str(local_ffmpeg)
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:

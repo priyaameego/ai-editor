@@ -16,7 +16,9 @@ def process_video_task(job_id: str, input_path: str, output_path: str):
         
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         
+        stdout_lines = []
         for line in process.stdout:
+            stdout_lines.append(line)
             # Try to parse progress from script output if possible
             # The script outputs things like: "Pass 2/2: applying masked removal..."
             # and "  120/420 frames"
@@ -43,7 +45,8 @@ def process_video_task(job_id: str, input_path: str, output_path: str):
         if process.returncode == 0:
             update_job(job_id, status='completed', progress=100, output_filename=os.path.basename(output_path))
         else:
-            update_job(job_id, status='failed', error_message="Processing failed during script execution.")
+            error_log = "".join(stdout_lines[-10:]).strip()
+            update_job(job_id, status='failed', error_message=f"Script failed: {error_log}")
             
     except Exception as e:
         error_trace = traceback.format_exc()
